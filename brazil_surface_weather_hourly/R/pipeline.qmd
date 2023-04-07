@@ -1,0 +1,110 @@
+---
+title: "Weather"
+format: html
+editor: visual
+---
+
+## Quarto
+
+## List files
+
+```{r}
+
+library(tidyverse)
+
+# what files do I have? ---
+lf = list.files("../data", full.names = T, recursive=T)
+lf
+
+```
+
+## Load metadata
+
+```{r}
+
+# load metadata and identifiers ----
+stations = readr::read_csv(lf[grepl("stations",lf)])
+stations_skim = skimr::skim(stations)
+
+coldesc = readr::read_csv(lf[grepl("columns_des",lf)])
+knitr::kable(coldesc) %>% kableExtra::kable_classic_2()
+```
+
+```{r}
+# load datasets with weather data -----
+centralwest = readr::read_csv(lf[grepl("central_west",lf)], na="-9999")
+#centralwest_skim = skimr::skim(centralwest)
+head(centralwest,10)
+
+```
+
+```{r}
+
+min(centralwest$`RADIACAO GLOBAL (Kj/m²)`, na.rm=T)
+```
+
+
+```{r}
+north = readr::read_csv(lf[grepl("north",lf)])
+#north_skim = skimr::skim(north)
+
+northeast = readr::read_csv(lf[grepl("northeast",lf)])
+#northeast_skim = skimr::skim(northeast)
+
+south = readr::read_csv(lf[grepl("south",lf)])
+#south_skim = skimr::skim(south)
+
+southeast = readr::read_csv(lf[grepl("southeast",lf)])
+#southeast_skim = skimr::skim(southeast)
+
+```
+
+
+```{r}
+names(centralwest)
+```
+
+```{r}
+centralwest_pp = centralwest %>%
+  janitor::clean_names()
+names(centralwest_pp)
+```
+
+
+```{r}
+centralwest_pp2 = centralwest_pp %>%
+  mutate(dt_month = lubridate::month(data),
+         dt_year = lubridate::year(data),
+         dt_yday = lubridate::yday(data))
+```
+
+```{r}
+centralwest_agg = centralwest_pp2 %>%
+  group_by(station_code) %>%
+  summarise(mean_radiation = mean(radiacao_global_kj_m2, na.rm=T),
+            sd_radiation = sd(radiacao_global_kj_m2, na.rm=T)) %>%
+  inner_join(stations)
+
+centralwest_agg_byyear_bymonth = centralwest_pp2 %>%
+  group_by(station_code, dt_year, dt_month) %>%
+  summarise(mean_radiation = mean(radiacao_global_kj_m2, na.rm=T),
+            sd_radiation = sd(radiacao_global_kj_m2, na.rm=T))
+```
+
+```{r}
+ggplot(centralwest_agg, aes(station_code, sd_radiation, group=station_code)) + geom_point()
+```
+
+```{r}
+ggplot(centralwest_agg, aes(height, sd_radiation)) + geom_point(aes(size=sd_radiation))
+```
+
+```{r}
+ggplot(centralwest_agg, aes(latitude, longitude)) + geom_point(aes(size=sd_radiation)) +
+  geom_vline(xintercept=0, color="red")
+```
+
+```{r}
+ggplot(centralwest_agg_byyear_bymonth, aes(dt_month, sd_radiation, group=station_code)) + geom_path() +
+  facet_wrap(dt_year~.)
+```
