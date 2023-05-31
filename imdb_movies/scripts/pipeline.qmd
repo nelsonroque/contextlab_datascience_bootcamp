@@ -1,0 +1,125 @@
+---
+title: "IMDB Movies EDA"
+format: html
+editor: visual
+---
+
+## Lib calls
+
+```{r}
+library(readr)
+library(tidyverse)
+```
+
+## Inspect the data
+
+```{r}
+movies <- read_csv("../data/movies.csv") %>%
+  mutate(primary_genre = str_extract(GENRE, "^[^,]+"))
+```
+
+```{r}
+unique(movies$GENRE)
+```
+
+```{r}
+all_genre_str = paste(unique(movies$GENRE), collapse=",")
+all_genre_str_nolb = gsub("\n", "", all_genre_str)
+
+
+# Convert string to vector of entries
+my_vector <- unlist(strsplit(all_genre_str_nolb, ","))
+
+# Get unique values
+my_unique_values <- unique(trimws(my_vector))
+length(my_unique_values)
+
+
+# Create dummy codes for each value in vector
+my_dummy_codes <- sapply(my_unique_values, function(x) ifelse(str_detect(movies$GENRE, x), 1, 0))
+
+# Add dummy codes to data frame
+my_df <- cbind(movies, my_dummy_codes)
+
+```
+
+```{r}
+movies_dqr = skimr::skim(movies)
+```
+
+```{r}
+agg_genres = movies %>% 
+  group_by(primary_genre) %>%
+  summarise(avg_rating = mean(RATING, na.rm=T),
+            sd_rating = sd(RATING, na.rm=T),
+            
+            avg_gross = mean(Gross, na.rm=T),
+            sd_gross = sd(Gross, na.rm=T),
+            
+            avg_votes = mean(VOTES, na.rm=T),
+            sd_votes = sd(VOTES, na.rm=T)
+            ) %>%
+  arrange(avg_rating)
+
+agg_top5 = agg_genres %>%
+  top_n(., n=5)
+
+ggplot(agg_genres, aes(primary_genre, avg_rating)) +
+  geom_bar(stat="identity") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90))
+
+```
+
+```{r}
+
+movies_clean = my_df %>%
+  mutate(year_clean = as.numeric(str_extract(YEAR, "\\d{4}"))) %>%
+  mutate(genre_clean = gsub("\n", "", primary_genre))
+
+agg_genres_by_year = movies_clean %>%
+  group_by(year_clean) %>%
+  count(genre_clean)
+
+```
+
+```{r}
+
+ggplot(agg_genres_by_year, 
+       aes(year_clean, n)) + geom_path()
+
+mc = c("Horror", "Thriller")
+
+```
+
+```{r}
+
+ggplot(agg_genres_by_year %>% filter(genre_clean %in% mc), 
+       aes(year_clean, n)) + geom_path() +
+  facet_grid(genre_clean ~.)
+```
+
+```{r}
+genre_long = my_df %>%
+  select(MOVIES, YEAR, RATING, VOTES, Gross, Action:News) %>%
+  pivot_longer(names_to = "genre", values_to="present", Action:News)
+```
+
+```{r}
+
+agg_byyear_bygenre = genre_long %>%
+  group_by(YEAR, genre) %>%
+  summarise(score = sum(present))
+
+ggplot(agg_byyear_bygenre, aes(YEAR, genre, fill=score)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  theme(axis.text.x = element_text(angle=90))
+```
+
+```{r}
+agg_bygenre = movies %>%
+  group_by(primary_genre) %>%
+  summarise(n = n())
+
+```
